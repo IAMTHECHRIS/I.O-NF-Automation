@@ -70,7 +70,7 @@ func resumoTexto(docs []Documento, anexos []string) string {
 	for _, d := range docs {
 		fmt.Fprintf(&b, "- %s %s — %s — R$ %.2f\r\n", d.Tipo, d.Numero, d.Fornecedor, d.Valor)
 	}
-	fmt.Fprintf(&b, "\r\nObservação: PDF é anexado quando existir ao lado do XML. NFS-e ainda pode seguir somente com XML.\r\n")
+	fmt.Fprintf(&b, "\r\nObservação: o PDF é anexado quando existir ao lado do XML; NFS-e gera DANFSe simplificado a partir do XML oficial.\r\n")
 	return b.String()
 }
 

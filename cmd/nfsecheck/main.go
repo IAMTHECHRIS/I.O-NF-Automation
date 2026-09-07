@@ -37,4 +37,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "NFSE_ERRO: %v\n", err)
 		os.Exit(1)
 	}
+
+	resumoPDF := coletansfe.GerarPDFsPendentes(cfg)
+	fmt.Printf("PDF_NFSE: candidatas=%d gerados=%d existentes=%d erros=%v\n",
+		resumoPDF.Candidatas,
+		resumoPDF.Gerados,
+		resumoPDF.Existentes,
+		resumoPDF.Erros,
+	)
+	if len(resumoPDF.Erros) > 0 {
+		os.Exit(1)
+	}
 }

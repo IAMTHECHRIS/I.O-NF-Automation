@@ -443,6 +443,15 @@
         <div class="status-form" id="status-tarefa"></div>
       </div>
 
+      <div class="campo">
+        <label>PDFs de NFS-e</label>
+        <p class="explicacao" style="margin-top:6px;">
+          Gera o DANFSe/PDF das notas de serviço que já têm XML baixado, sem consultar a SEFAZ/ADN novamente.
+        </p>
+        <button class="btn-secundario" id="btnGerarPDFsServico" onclick="clicarGerarPDFsServico()">Gerar PDFs de serviço pendentes</button>
+        <div class="status-form" id="status-pdf-servico"></div>
+      </div>
+
       <hr style="border-color: var(--border); margin: 22px 0 14px;">
 
       <div class="campo">
@@ -1118,6 +1127,27 @@ async function clicarRecuperarCatalogo() {
   esconderCarregando();
 
   let texto = r.mensagem || (r.ok ? 'Recuperação concluída.' : 'Erro na recuperação.');
+  if (r.erros && r.erros.length) texto += ' Erros: ' + r.erros.join(' | ');
+  status.className = 'status-form ' + (r.ok ? 'ok' : 'erro');
+  status.textContent = texto;
+  btn.disabled = false;
+}
+
+async function clicarGerarPDFsServico() {
+  const btn = document.getElementById('btnGerarPDFsServico');
+  const status = document.getElementById('status-pdf-servico');
+
+  btn.disabled = true;
+  status.className = 'status-form';
+  status.textContent = 'Gerando PDFs das NFS-e já baixadas...';
+  mostrarCarregando('Gerando PDFs de serviço... não feche o programa.');
+
+  const resultado = await chamarAsync('gerarPDFsServicoPendentes');
+  const r = JSON.parse(resultado);
+  await carregarCatalogo();
+  esconderCarregando();
+
+  let texto = r.mensagem || (r.ok ? 'PDFs de serviço gerados.' : 'Erro ao gerar PDFs de serviço.');
   if (r.erros && r.erros.length) texto += ' Erros: ' + r.erros.join(' | ');
   status.className = 'status-form ' + (r.ok ? 'ok' : 'erro');
   status.textContent = texto;

@@ -124,7 +124,11 @@ func Abrir(cfg appconfig.Config) (bool, error) {
 			if err != nil {
 				erros = append(erros, "NFSe: "+err.Error())
 			}
-			debugLog.Printf("<< buscarAgora nfe=%+v nfse=%+v erros=%v", resumoNFe, resumoNFSe, erros)
+			resumoPDFNFSe := coletansfe.GerarPDFsPendentes(cfg)
+			if len(resumoPDFNFSe.Erros) > 0 {
+				erros = append(erros, "PDF NFSe: "+strings.Join(resumoPDFNFSe.Erros, " | "))
+			}
+			debugLog.Printf("<< buscarAgora nfe=%+v nfse=%+v pdf_nfse=%+v erros=%v", resumoNFe, resumoNFSe, resumoPDFNFSe, erros)
 
 			// diagnóstico: "0 notas novas" pode significar duas coisas bem
 			// diferentes — já está em dia (bom sinal) ou parou no meio do
@@ -142,6 +146,12 @@ func Abrir(cfg appconfig.Config) (bool, error) {
 					diagnostico += " "
 				}
 				diagnostico += diagNFSe
+			}
+			if resumoPDFNFSe.Gerados > 0 {
+				if diagnostico != "" {
+					diagnostico += " "
+				}
+				diagnostico += fmt.Sprintf("PDF NFS-e: %d DANFSe gerado(s).", resumoPDFNFSe.Gerados)
 			}
 
 			b, _ := json.Marshal(map[string]any{"ok": len(erros) == 0, "erros": erros, "diagnostico": diagnostico})
@@ -173,8 +183,36 @@ func Abrir(cfg appconfig.Config) (bool, error) {
 				erros = append(erros, "NFSe: "+err.Error())
 			}
 			diagnostico := diagnosticoNFSe(resumoNFSe)
-			debugLog.Printf("<< buscarNFSeAgora nfse=%+v erros=%v", resumoNFSe, erros)
+			resumoPDFNFSe := coletansfe.GerarPDFsPendentes(cfg)
+			if len(resumoPDFNFSe.Erros) > 0 {
+				erros = append(erros, "PDF NFSe: "+strings.Join(resumoPDFNFSe.Erros, " | "))
+			}
+			if resumoPDFNFSe.Gerados > 0 {
+				if diagnostico != "" {
+					diagnostico += " "
+				}
+				diagnostico += fmt.Sprintf("PDF NFS-e: %d DANFSe gerado(s).", resumoPDFNFSe.Gerados)
+			}
+			debugLog.Printf("<< buscarNFSeAgora nfse=%+v pdf_nfse=%+v erros=%v", resumoNFSe, resumoPDFNFSe, erros)
 			b, _ := json.Marshal(map[string]any{"ok": len(erros) == 0, "erros": erros, "diagnostico": diagnostico})
+			resolverAsync(id, string(b))
+		}()
+	})
+
+	w.Bind("gerarPDFsServicoPendentes", func(id int) {
+		go func() {
+			debugLog.Printf(">> gerarPDFsServicoPendentes")
+			resumo := coletansfe.GerarPDFsPendentes(cfg)
+			debugLog.Printf("<< gerarPDFsServicoPendentes resumo=%+v", resumo)
+			msg := fmt.Sprintf(
+				"PDFs de NFS-e: %d nota(s) de serviço no catálogo, %d PDF(s) gerado(s), %d já existia(m).",
+				resumo.Candidatas, resumo.Gerados, resumo.Existentes,
+			)
+			b, _ := json.Marshal(map[string]any{
+				"ok":       len(resumo.Erros) == 0,
+				"mensagem": msg,
+				"erros":    resumo.Erros,
+			})
 			resolverAsync(id, string(b))
 		}()
 	})

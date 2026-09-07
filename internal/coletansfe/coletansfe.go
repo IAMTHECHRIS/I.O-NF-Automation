@@ -13,6 +13,7 @@ import (
 	"io-nf-automation/internal/adn"
 	"io-nf-automation/internal/appconfig"
 	"io-nf-automation/internal/catalogo"
+	"io-nf-automation/internal/danfse"
 	"io-nf-automation/internal/document"
 	"io-nf-automation/internal/nfedist"
 	"io-nf-automation/internal/organizer"
@@ -20,6 +21,9 @@ import (
 
 // MaxPaginas — cautela deliberada, mesmo espírito do coletanfe.
 const MaxPaginas = 12
+
+// geradorDANFSe aparece no rodapé do PDF ("Gerado por ...").
+const geradorDANFSe = "I.O NF Automation"
 
 // Resumo é o resultado estruturado de uma rodada de Run() — mesmo espírito
 // do coletanfe.Resumo, pro painel conseguir dizer "0 novas porque já está
@@ -41,6 +45,69 @@ type Resumo struct {
 	ErrosAPI              []string
 	TiposDocumento        map[string]int
 	ParouPorLimitePaginas bool // rodou até MaxPaginas sem esvaziar — pode ter mais
+}
+
+type ResumoPDF struct {
+	Candidatas int
+	Gerados    int
+	Existentes int
+	Erros      []string
+}
+
+func gerarDANFSeAoLado(caminhoXML string, xmlBytes []byte, direcao document.Direcao) bool {
+	if strings.TrimSpace(caminhoXML) == "" {
+		return false
+	}
+	pdfBytes, err := danfse.GerarDeXML(xmlBytes, string(direcao), geradorDANFSe)
+	if err != nil {
+		log.Printf("[NFSe] aviso: não deu pra gerar o DANFSe de %s: %v", filepath.Base(caminhoXML), err)
+		return false
+	}
+	caminhoPDF := strings.TrimSuffix(caminhoXML, filepath.Ext(caminhoXML)) + ".pdf"
+	if err := os.WriteFile(caminhoPDF, pdfBytes, 0o644); err != nil {
+		log.Printf("[NFSe] aviso: não deu pra gravar o DANFSe de %s: %v", filepath.Base(caminhoXML), err)
+		return false
+	}
+	return true
+}
+
+func GerarPDFsPendentes(cfg appconfig.Config) ResumoPDF {
+	var resumo ResumoPDF
+	entradas, err := catalogo.Listar(cfg.PastaEfetiva())
+	if err != nil {
+		resumo.Erros = append(resumo.Erros, "ler catálogo: "+err.Error())
+		return resumo
+	}
+	for _, e := range entradas {
+		tipo := document.Tipo(strings.TrimSpace(e.Tipo))
+		if tipo != document.TipoNFES && tipo != document.TipoNFESEmitida {
+			continue
+		}
+		if strings.TrimSpace(e.Caminho) == "" {
+			continue
+		}
+		resumo.Candidatas++
+		pdfPath := strings.TrimSuffix(e.Caminho, filepath.Ext(e.Caminho)) + ".pdf"
+		if _, err := os.Stat(pdfPath); err == nil {
+			resumo.Existentes++
+			continue
+		}
+		xmlBytes, err := os.ReadFile(e.Caminho)
+		if err != nil {
+			resumo.Erros = append(resumo.Erros, fmt.Sprintf("%s: ler XML: %v", filepath.Base(e.Caminho), err))
+			continue
+		}
+		direcao := document.DirecaoRecebida
+		if tipo == document.TipoNFESEmitida {
+			direcao = document.DirecaoEmitida
+		}
+		if gerarDANFSeAoLado(e.Caminho, xmlBytes, direcao) {
+			resumo.Gerados++
+		} else {
+			resumo.Erros = append(resumo.Erros, filepath.Base(e.Caminho)+": falha ao gerar PDF")
+		}
+	}
+	return resumo
 }
 
 func Run(cfg appconfig.Config) (Resumo, error) {
@@ -233,6 +300,7 @@ func Run(cfg appconfig.Config) (Resumo, error) {
 			}
 
 			if reg, ja := processadas[doc.Chave]; ja && reg.doc.Status == doc.Status {
+				gerarDANFSeAoLado(reg.caminho, xmlBytes, direcao)
 				fmt.Printf("[NFSe]   NSU %d [%s] já existe (%s) -> pulando\n", item.NSU, direcao, reg.caminho)
 				continue
 			}
@@ -246,6 +314,7 @@ func Run(cfg appconfig.Config) (Resumo, error) {
 			if err := catalogo.Registrar(cfg.PastaEfetiva(), doc, caminho); err != nil {
 				log.Printf("[NFSe]   NSU %d: aviso ao registrar no catálogo: %v", item.NSU, err)
 			}
+			gerarDANFSeAoLado(caminho, xmlBytes, direcao)
 			fmt.Printf("[NFSe]   NSU %d [%s] -> %s\n", item.NSU, direcao, caminho)
 		}
 

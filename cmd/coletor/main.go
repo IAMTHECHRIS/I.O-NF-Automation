@@ -204,6 +204,14 @@ func rodarColeta(cfg appconfig.Config) {
 		teveErro = true
 	}
 
+	resumoPDFNFSe := coletansfe.GerarPDFsPendentes(cfg)
+	if len(resumoPDFNFSe.Erros) > 0 {
+		log.Printf("aviso: geração de PDFs de NFSe teve %d erro(s): %s", len(resumoPDFNFSe.Erros), strings.Join(resumoPDFNFSe.Erros, " | "))
+	}
+	if resumoPDFNFSe.Gerados > 0 || resumoPDFNFSe.Existentes > 0 {
+		log.Printf("PDFs de NFSe: candidatas=%d gerados=%d já_existiam=%d", resumoPDFNFSe.Candidatas, resumoPDFNFSe.Gerados, resumoPDFNFSe.Existentes)
+	}
+
 	if teveErro {
 		log.Println("Coleta terminou com erro — não vou gravar marcador de sucesso de hoje.")
 		log.Println("Assim, a próxima execução agendada ainda pode tentar novamente.")
