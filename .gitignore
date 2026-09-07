@@ -31,3 +31,7 @@ OPERACAO_INTERNA.md
 .config/
 .local/
 mingw-case-fix/
+
+# Estado local de agentes - nunca versionar
+.claude/
+.codex/
