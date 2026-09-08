@@ -254,6 +254,28 @@ os testes. Elas cobrem junho/2026 a setembro/2026. Para a operação atual da
 THESIS, foi decidido aceitar como base prática as compras de setembro/2026
 em diante e manter o processo rodando para novas notas.
 
+## Diagnóstico THESIS em 2026-09-08
+
+O acesso SSH ao servidor Windows THESIS foi validado pelo Server03 via
+`tailscale-thesis-admin`/SOCKS5. A tarefa `ColetaNotasFiscaisAutomatica`
+existia e rodou em `08/09/2026 08:00:02`, mas estava com `Iniciar em` vazio.
+Com isso, o Windows iniciava o processo fora da pasta `_Controle`; o coletor
+não achava `config.json` e abria o instalador/interface em vez de executar a
+coleta agendada.
+
+Correção aplicada: `appconfig` passou a localizar `config.json` pela pasta do
+executável, e a tarefa do Windows foi ajustada para usar `_Controle` como
+`WorkingDirectory`. O executável instalado no THESIS foi atualizado com backup
+do anterior.
+
+Teste isolado de NFS-e após a correção do agendador ainda falhou antes de HTTP:
+o Go retornou `tls: bad record MAC`; o fallback Python/OpenSSL não rodou porque
+o Windows THESIS não tem Python instalado; e o `curl` nativo do Windows usa
+Schannel, falhando com o certificado. Portanto, a automação agendada foi
+corrigida, mas a comunicação NFS-e/ADN nesse servidor ainda depende de resolver
+o runtime OpenSSL/Python ou outro fallback compatível. Checkpoint ADN permaneceu
+em `339`.
+
 ## Regra para testes futuros
 
 Se quiser testar “pasta limpa”, limpar somente:
