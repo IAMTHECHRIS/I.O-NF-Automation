@@ -90,10 +90,11 @@ func PastaControle(pastaSaida string) string {
 	return filepath.Join(pastaSaida, "_Controle")
 }
 
-// configPath usa a PASTA ATUAL (não o caminho do .exe) — no Windows, dar
-// duplo-clique num .exe já deixa o diretório atual igual à pasta dele, e
-// aqui no desenvolvimento (rodando com "go run") isso também funciona
-// direto, sem precisar de exe fixo.
+// configPath usa a pasta do executável, não o diretório atual do processo.
+// No Agendador de Tarefas do Windows, quando "Iniciar em" fica vazio, o
+// processo pode nascer em C:\Windows\System32; se dependermos de os.Getwd(),
+// o modo --agendado não acha o config.json ao lado do .exe e volta para o
+// instalador em vez de coletar notas.
 // Existe diz se já existe um config.json salvo — usado por quem quiser
 // decidir COMO configurar (janela gráfica, assistente de texto, etc.)
 // antes de chamar Load().
@@ -103,11 +104,14 @@ func Existe() bool {
 }
 
 func configPath() string {
-	wd, err := os.Getwd()
+	exe, err := os.Executable()
 	if err != nil {
+		if wd, wdErr := os.Getwd(); wdErr == nil {
+			return filepath.Join(wd, "config.json")
+		}
 		return "config.json"
 	}
-	return filepath.Join(wd, "config.json")
+	return filepath.Join(filepath.Dir(exe), "config.json")
 }
 
 // CaminhoArquivo expõe o caminho do config.json pra quem precisar apagá-lo
