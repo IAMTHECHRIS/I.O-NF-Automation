@@ -25,7 +25,7 @@ func FromPFX(caminhoPfx, senha string) (tls.Certificate, error) {
 		return tls.Certificate{}, fmt.Errorf("ler %s: %w", caminhoPfx, err)
 	}
 
-	chave, cert, err := pkcs12.Decode(raw, senha)
+	chave, cert, caCerts, err := pkcs12.DecodeChain(raw, senha)
 	if err != nil {
 		if errors.Is(err, pkcs12.ErrIncorrectPassword) {
 			return tls.Certificate{}, errors.New("senha do certificado incorreta")
@@ -33,8 +33,14 @@ func FromPFX(caminhoPfx, senha string) (tls.Certificate, error) {
 		return tls.Certificate{}, fmt.Errorf("não consegui ler o certificado: %w", err)
 	}
 
+	chain := make([][]byte, 0, 1+len(caCerts))
+	chain = append(chain, cert.Raw)
+	for _, ca := range caCerts {
+		chain = append(chain, ca.Raw)
+	}
+
 	return tls.Certificate{
-		Certificate: [][]byte{cert.Raw},
+		Certificate: chain,
 		PrivateKey:  chave,
 		Leaf:        cert,
 	}, nil

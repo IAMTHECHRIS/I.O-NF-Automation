@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -46,6 +47,24 @@ func (c *Client) getComFallback(endpoint string) ([]byte, int, error) {
 		return nil, 0, fmt.Errorf("chamar ADN falhou na comunicação TLS/rede (sem retry automático): %w", err)
 	}
 
+	if runtime.GOOS == "windows" && c.pfxPath != "" {
+		body, status, psErr := c.getViaPowerShell(endpoint)
+		if psErr == nil {
+			return body, status, nil
+		}
+
+		body, status, pyErr := c.getViaPython(endpoint)
+		if pyErr == nil {
+			return body, status, nil
+		}
+
+		body, status, fallbackErr := c.getViaCurl(endpoint)
+		if fallbackErr != nil {
+			return nil, 0, fmt.Errorf("chamar ADN falhou no Go (%v), no fallback PowerShell/.NET (%v), no fallback Python/OpenSSL (%v) e no fallback curl/OpenSSL (%w)", err, psErr, pyErr, fallbackErr)
+		}
+		return body, status, nil
+	}
+
 	body, status, pyErr := c.getViaPython(endpoint)
 	if pyErr == nil {
 		return body, status, nil
@@ -56,6 +75,75 @@ func (c *Client) getComFallback(endpoint string) ([]byte, int, error) {
 		return nil, 0, fmt.Errorf("chamar ADN falhou no Go (%v), no fallback Python/OpenSSL (%w) e no fallback curl/OpenSSL (%w)", err, pyErr, fallbackErr)
 	}
 	return body, status, nil
+}
+
+// getViaPowerShell contorna o "tls: bad record MAC" do crypto/tls puro do Go
+// no Windows, usando o handshake TLS nativo do .NET (Schannel) via
+// X509Certificate2 + HttpWebRequest. Confirmado manualmente contra o ADN de
+// produção em 2026-09-08: o mesmo PFX que falha no Go funciona sem erro pelo
+// PowerShell 5.1 já presente em qualquer Windows, sem exigir Python/OpenSSL.
+func (c *Client) getViaPowerShell(endpoint string) ([]byte, int, error) {
+	powershellPath, err := exec.LookPath("powershell")
+	if err != nil {
+		return nil, 0, errors.New("powershell não encontrado no sistema")
+	}
+
+	dir, err := os.MkdirTemp("", "io-nf-adn-ps-*")
+	if err != nil {
+		return nil, 0, fmt.Errorf("criar temporário: %w", err)
+	}
+	defer os.RemoveAll(dir)
+
+	scriptPath := filepath.Join(dir, "adn.ps1")
+	script := `$ErrorActionPreference = "Stop"
+$pfxPath = $args[0]
+$pfxPass = $args[1]
+$url = $args[2]
+
+$flags = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::MachineKeySet
+$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $pfxPass, $flags)
+
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+
+try {
+    $req = [System.Net.HttpWebRequest]::Create($url)
+    $req.ClientCertificates.Add($cert) | Out-Null
+    $req.Method = "GET"
+    $req.Timeout = 30000
+    $resp = $req.GetResponse()
+    $status = [int]$resp.StatusCode
+    $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
+    $body = $reader.ReadToEnd()
+    $resp.Close()
+    [Console]::Out.Write($body)
+    [Console]::Out.Write("` + "\nIO_NF_HTTP_STATUS:" + `" + $status)
+} catch [System.Net.WebException] {
+    if ($_.Exception.Response) {
+        $errResp = $_.Exception.Response
+        $status = [int]$errResp.StatusCode
+        $reader = New-Object System.IO.StreamReader($errResp.GetResponseStream())
+        $body = $reader.ReadToEnd()
+        [Console]::Out.Write($body)
+        [Console]::Out.Write("` + "\nIO_NF_HTTP_STATUS:" + `" + $status)
+    } else {
+        [Console]::Error.Write($_.Exception.Message)
+        exit 1
+    }
+} catch {
+    [Console]::Error.Write($_.Exception.Message)
+    exit 1
+}
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
+		return nil, 0, fmt.Errorf("gravar script PowerShell temporário: %w", err)
+	}
+
+	cmd := exec.Command(powershellPath, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, c.pfxPath, c.pfxSenha, endpoint)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, 0, fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return separarStatusCurl(out)
 }
 
 func (c *Client) getViaPython(endpoint string) ([]byte, int, error) {
