@@ -271,10 +271,17 @@ do anterior.
 Teste isolado de NFS-e após a correção do agendador ainda falhou antes de HTTP:
 o Go retornou `tls: bad record MAC`; o fallback Python/OpenSSL não rodou porque
 o Windows THESIS não tem Python instalado; e o `curl` nativo do Windows usa
-Schannel, falhando com o certificado. Portanto, a automação agendada foi
-corrigida, mas a comunicação NFS-e/ADN nesse servidor ainda depende de resolver
-o runtime OpenSSL/Python ou outro fallback compatível. Checkpoint ADN permaneceu
-em `339`.
+Schannel, falhando com o certificado. Checkpoint ADN permaneceu em `339`.
+
+**Resolvido em 2026-09-08:** a causa raiz é um bug/incompatibilidade
+específico do `crypto/tls` puro do Go no Windows contra o ADN de produção —
+não instabilidade do endpoint, nem problema do certificado. Confirmado
+manualmente que PowerShell/.NET (`X509Certificate2`+`HttpWebRequest`,
+Schannel) consulta o mesmo endpoint com o mesmo PFX sem erro. Implementado
+`getViaPowerShell` (`internal/adn/curl_fallback.go`) como primeiro fallback
+no Windows, antes de Python/curl — elimina a dependência operacional de
+Python. Validado em produção: checkpoint ADN avançou de `339` para `340`,
+1 NFS-e real baixada sem erro TLS. Commit `3f2fcca`.
 
 ## Regra para testes futuros
 
