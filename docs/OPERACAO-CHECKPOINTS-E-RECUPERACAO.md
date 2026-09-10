@@ -223,7 +223,12 @@ FORNECEDOR_260904_NFEC 123_R$ 100,00.pdf
 Status atual:
 
 - NF-e compra com XML completo (`procNFe`) gera DANFE/PDF automaticamente.
-- NF-e resumo (`resNFe`) pode não gerar PDF porque não tem dados completos.
+- NF-e resumo (`resNFe`) não contém dados suficientes para DANFE. No painel,
+  cole a chave e use **Manifestar ciência desta nota** somente após confirmar
+  que a nota pertence à empresa. O programa registra o evento fiscal `210210`,
+  guarda o comprovante em `_Controle/manifestacoes/` e orienta a buscar a nota
+  novamente após alguns minutos; quando a SEFAZ devolver `procNFe`, o DANFE é
+  gerado normalmente. A coleta agendada nunca envia essa manifestação sozinha.
 - NFS-e ainda não tem DANFSe/PDF implementado; nesse caso o e-mail segue
   com XML apenas.
 

@@ -297,6 +297,16 @@
       <button class="btn-principal" id="btnBuscarChave" onclick="clicarBuscarPorChave()">Buscar essa nota</button>
       <div class="status-form" id="status-chave"></div>
 
+      <div class="campo" style="margin-top:20px;">
+        <label>Nota veio resumida, sem PDF?</label>
+        <p class="explicacao" style="margin:0 0 10px;">
+          Para liberar o XML completo, a SEFAZ pode exigir a <b>Ciência da Operação</b>.
+          Isso registra um evento fiscal real para esta chave; use apenas quando a nota for da empresa.
+        </p>
+        <button class="btn-secundario" id="btnManifestarCiencia" onclick="clicarManifestarCiencia()">Manifestar ciência desta nota</button>
+        <div class="status-form" id="status-ciencia"></div>
+      </div>
+
       <div class="campo" style="margin-top:24px;">
         <label>Recuperar XMLs apagados</label>
         <p class="explicacao" style="margin:0 0 10px;">
@@ -1109,6 +1119,29 @@ async function clicarBuscarPorChave() {
     status.textContent = r.erro;
     document.getElementById('resultadoChaveBox').style.display = 'none';
   }
+  btn.disabled = false;
+}
+
+async function clicarManifestarCiencia() {
+  const chave = document.getElementById('chaveInput').value.replace(/\D/g, '');
+  const status = document.getElementById('status-ciencia');
+  const btn = document.getElementById('btnManifestarCiencia');
+  if (chave.length !== 44) {
+    status.className = 'status-form erro';
+    status.textContent = 'Cole a chave de acesso de 44 dígitos antes de manifestar.';
+    return;
+  }
+  if (!confirm('Registrar Ciência da Operação para esta NF-e na SEFAZ? Essa é uma manifestação fiscal real.')) return;
+
+  btn.disabled = true;
+  status.className = 'status-form';
+  status.textContent = 'Registrando Ciência da Operação na SEFAZ...';
+  mostrarCarregando('Registrando manifestação fiscal... não feche o programa.');
+  const resultado = await chamarAsync('manifestarCiencia', chave);
+  const r = JSON.parse(resultado);
+  esconderCarregando();
+  status.className = 'status-form ' + (r.ok ? 'ok' : 'erro');
+  status.textContent = r.ok ? r.mensagem : r.erro;
   btn.disabled = false;
 }
 

@@ -12,6 +12,7 @@ package painel
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -30,6 +31,7 @@ import (
 	"io-nf-automation/internal/certload"
 	"io-nf-automation/internal/coletanfe"
 	"io-nf-automation/internal/coletansfe"
+	"io-nf-automation/internal/nfedist"
 	"io-nf-automation/internal/verificacao"
 	"io-nf-automation/internal/wintask"
 
@@ -258,6 +260,40 @@ func Abrir(cfg appconfig.Config) (bool, error) {
 			pdfCaminho := strings.TrimSuffix(caminho, filepath.Ext(caminho)) + ".pdf"
 			_, errPdf := os.Stat(pdfCaminho)
 			b, _ := json.Marshal(map[string]any{"ok": true, "mensagem": msg, "caminho": caminho, "tem_pdf": errPdf == nil})
+			resolverAsync(id, string(b))
+		}()
+	})
+
+	// Manifestar Ciência da Operação é intencionalmente uma ação manual do
+	// operador. Diferente da busca por chave, ela produz um evento fiscal na
+	// SEFAZ e por isso nunca pode ser acionada pela coleta agendada.
+	w.Bind("manifestarCiencia", func(id int, chave string) {
+		go func() {
+			chave = strings.TrimSpace(chave)
+			ctx, cancelar := context.WithTimeout(context.Background(), 90*time.Second)
+			defer cancelar()
+			ret, err := nfedist.ManifestarCiencia(ctx, cfg.CertificadoPfx, cfg.CertificadoSenha, cfg.TpAmb(), cfg.CNPJ, cfg.CUFAutor, chave)
+			if err != nil {
+				debugLog.Printf("<< manifestarCiencia chave=%s cStat=%s err=%v", chave, ret.CStat, err)
+				resolverAsync(id, respostaErro(err.Error()))
+				return
+			}
+
+			pasta := filepath.Join(appconfig.PastaControle(cfg.PastaEfetiva()), "manifestacoes")
+			if err := os.MkdirAll(pasta, 0o755); err != nil {
+				resolverAsync(id, respostaErro("criar pasta de comprovantes: "+err.Error()))
+				return
+			}
+			comprovante := filepath.Join(pasta, chave+"-210210-procEvento.xml")
+			if err := os.WriteFile(comprovante, ret.Processado, 0o600); err != nil {
+				resolverAsync(id, respostaErro("gravar comprovante da manifestação: "+err.Error()))
+				return
+			}
+			debugLog.Printf("<< manifestarCiencia chave=%s cStat=%s protocolo=%s", chave, ret.CStat, ret.Protocolo)
+			b, _ := json.Marshal(map[string]any{
+				"ok":       true,
+				"mensagem": fmt.Sprintf("Ciência da Operação registrada (cStat=%s: %s). Comprovante salvo; aguarde alguns minutos e busque a nota novamente.", ret.CStat, ret.XMotivo),
+			})
 			resolverAsync(id, string(b))
 		}()
 	})
