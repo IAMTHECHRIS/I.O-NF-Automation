@@ -553,7 +553,7 @@ func Abrir(cfg appconfig.Config) (bool, error) {
 
 	w.Bind("garantirTarefaPainel", func() string {
 		debugLog.Printf(">> garantirTarefaPainel")
-		if err := wintask.EnsureDailyTask("08:00"); err != nil {
+		if err := wintask.EnsureDailyTask("08:00", "14:00", "20:00"); err != nil {
 			debugLog.Printf("<< garantirTarefaPainel erro=%v", err)
 			return respostaErro(err.Error())
 		}
@@ -570,22 +570,13 @@ func Abrir(cfg appconfig.Config) (bool, error) {
 	})
 
 	w.Bind("abrirPasta", func(caminho string) {
-		// /select, marca o arquivo dentro do Explorer, já mostrando a pasta
-		// certa — sem precisar navegar manualmente. O bug reportado ("abre
-		// pasta genérica pra QUALQUER nota, não só as com vírgula no nome")
-		// era causado justamente pela tentativa anterior de correção: aspas
-		// manuais ao redor do caminho (`/select,"`+caminho+`"`) fazem o
-		// próprio exec.Command do Go, ao montar a linha de comando pro
-		// Windows, escapar essas aspas literais (viram \" — regra de quoting
-		// do MSVCRT que o Go segue), e o explorer.exe recebe um argumento
-		// com barras invertidas + aspas soltas no meio do caminho, que ele
-		// não reconhece como delimitador de nada. O jeito certo é NÃO
-		// colocar aspas manualmente — o exec.Command do Go já aplica a
-		// quoting correta sozinho (só entre aspas quando precisa, ex:
-		// caminho com espaço/vírgula) exatamente no formato que o
-		// CommandLineToArgvW (e por extensão o parser do explorer.exe)
-		// espera.
-		exec.Command("explorer", "/select,"+caminho).Start()
+		pasta := caminho
+		if info, err := os.Stat(caminho); err == nil && !info.IsDir() {
+			pasta = filepath.Dir(caminho)
+		} else if err != nil {
+			pasta = filepath.Dir(caminho)
+		}
+		exec.Command("explorer", pasta).Start()
 	})
 
 	w.Bind("escolherArquivo", func() string {

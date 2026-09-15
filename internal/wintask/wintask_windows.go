@@ -12,22 +12,20 @@ import (
 	"syscall"
 )
 
-func garantirTarefa(horario string) error {
+func garantirTarefa(horarios ...string) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("descobrir caminho do executável: %w", err)
 	}
-
-	// Antes isso só checava "a tarefa existe?" e parava se sim — bug: depois
-	// de reinstalar em outra pasta (ex: durante testes), a tarefa antiga
-	// ficava presa apontando pro caminho velho, sem nunca ser corrigida.
-	// Agora compara o caminho REGISTRADO na tarefa com o executável atual;
-	// se bater, não mexe; se não bater (ou não existir), (re)registra do
-	// zero — Register-ScheduledTask -Force sobrescreve sem perguntar.
-	registrado, existe := caminhoRegistrado()
-	if existe && strings.EqualFold(filepath.Clean(registrado), filepath.Clean(exe)) {
-		return nil
+	if len(horarios) == 0 {
+		horarios = []string{"08:00"}
 	}
+
+	// Reaplica a tarefa inteira, mesmo quando o caminho já bate. Isso mantém
+	// os horários esperados sincronizados com o código; sem isso, uma tarefa
+	// antiga com menos triggers sobreviveria indefinidamente.
+	registrado, existe := caminhoRegistrado()
+	mesmoExe := existe && strings.EqualFold(filepath.Clean(registrado), filepath.Clean(exe))
 
 	// schtasks /Create básico (usado antes) não expõe "rodar assim que
 	// possível" (StartWhenAvailable) — essa opção só existe via XML da
@@ -47,26 +45,36 @@ func garantirTarefa(horario string) error {
 	// --agendado diz pro cmd/coletor que essa execução é automática, sem
 	// ninguém na frente do computador — roda só a coleta, sem abrir o
 	// painel gráfico.
+	var triggerLines []string
+	var triggerNames []string
+	for i, horario := range horarios {
+		nome := fmt.Sprintf("$gatilhoDiario%d", i+1)
+		triggerLines = append(triggerLines, fmt.Sprintf("%s = New-ScheduledTaskTrigger -Daily -At '%s'", nome, horario))
+		triggerNames = append(triggerNames, nome)
+	}
+	triggerLines = append(triggerLines, "$gatilhoBoot = New-ScheduledTaskTrigger -AtStartup", "$gatilhoBoot.Delay = 'PT2M'")
+	triggerNames = append(triggerNames, "$gatilhoBoot")
+
 	script := fmt.Sprintf(`
 $ErrorActionPreference = "Stop"
 $acao = New-ScheduledTaskAction -Execute %s -Argument '--agendado'
-$gatilhoDiario = New-ScheduledTaskTrigger -Daily -At '%s'
-$gatilhoBoot = New-ScheduledTaskTrigger -AtStartup
-$gatilhoBoot.Delay = 'PT2M'
+%s
 $config = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskName %s -Action $acao -Trigger @($gatilhoDiario, $gatilhoBoot) -Settings $config -Principal $principal -Description "Coleta diaria de notas fiscais (NFe/NFSe) via SEFAZ. Criada automaticamente." -Force | Out-Null
-`, aspasPS(exe), horario, aspasPS(nomeTarefa))
+Register-ScheduledTask -TaskName %s -Action $acao -Trigger @(%s) -Settings $config -Principal $principal -Description "Coleta diaria de notas fiscais (NFe/NFSe) via SEFAZ. Criada automaticamente." -Force | Out-Null
+`, aspasPS(exe), strings.Join(triggerLines, "\n"), aspasPS(nomeTarefa), strings.Join(triggerNames, ", "))
 
 	saida, err := rodarPowerShell(script)
 	if err != nil {
 		return fmt.Errorf("criar tarefa agendada: %w — saída: %s", err, saida)
 	}
 
-	if existe {
+	if mesmoExe {
+		fmt.Println("Tarefa agendada verificada e horários reaplicados.")
+	} else if existe {
 		fmt.Println("Tarefa agendada estava desatualizada (apontava pra outro lugar) — corrigida.")
 	} else {
-		fmt.Printf("Tarefa agendada criada: roda sozinho todo dia às %s.\n", horario)
+		fmt.Printf("Tarefa agendada criada: roda sozinho todo dia às %s.\n", strings.Join(horarios, ", "))
 	}
 	fmt.Println("Se o PC estiver desligado (ou você deslogado) nesse horário, ela roda")
 	fmt.Println("assim que ligar/entrar de novo — não precisa configurar nada manualmente.")

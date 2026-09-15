@@ -1455,7 +1455,6 @@ async function carregarAmbienteInicial() {
 
 Promise.all([carregarCatalogo(), iniciarToggleBusca(), carregarAmbienteInicial()]).then(() => {
   esconderCarregando();
-  if (buscaAutomatica) clicarBuscarAgora();
 });
 </script>
 </body>

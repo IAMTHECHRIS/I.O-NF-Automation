@@ -9,16 +9,16 @@ import "runtime"
 const nomeTarefa = "ColetaNotasFiscaisAutomatica"
 
 // EnsureDailyTask garante que existe uma tarefa agendada rodando este
-// executável todo dia no horário informado (formato "HH:MM"), com "rodar
+// executável todo dia nos horários informados (formato "HH:MM"), com "rodar
 // assim que possível" ligado: se o PC estiver desligado (ou o usuário
 // deslogado) nesse horário, a tarefa roda na próxima vez que ele
 // ligar/entrar, em vez de simplesmente pular o dia. Idempotente — seguro
 // chamar toda execução, só cria na primeira vez.
-func EnsureDailyTask(horario string) error {
+func EnsureDailyTask(horarios ...string) error {
 	if runtime.GOOS != "windows" {
 		return nil // no-op fora do Windows
 	}
-	return garantirTarefa(horario)
+	return garantirTarefa(horarios...)
 }
 
 func Status() (string, bool, error) {

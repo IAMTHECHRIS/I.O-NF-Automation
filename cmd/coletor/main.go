@@ -154,28 +154,27 @@ func encerrarAqui() bool {
 // garantirTarefaAgendada só faz sentido no Windows; em outros sistemas não
 // faz nada (ver internal/wintask).
 func garantirTarefaAgendada() {
-	if err := wintask.EnsureDailyTask("08:00"); err != nil {
+	if err := wintask.EnsureDailyTask("08:00", "14:00", "20:00"); err != nil {
 		log.Printf("aviso: não consegui criar a tarefa agendada automaticamente: %v", err)
 		log.Println("(a coleta de hoje continua normalmente mesmo assim — só não ficou agendada sozinha)")
 	}
 }
 
 func rodarColeta(cfg appconfig.Config) {
-	// trava de "1x por dia": com o gatilho de boot (além do diário às 08h),
-	// o Windows pode disparar esse processo mais de uma vez no mesmo dia
-	// (ex: PC reiniciou de tarde por causa de update). Sem essa trava, cada
-	// disparo chamaria a API de novo à toa — não é o "Consumo Indevido"
-	// (esse vem de reiniciar o NSU do zero), mas é uma chamada desnecessária
-	// mesmo assim.
+	// Evita duplicidade imediata de boot/retry sem bloquear as rodadas
+	// legítimas de 08:00, 14:00 e 20:00. A SEFAZ exige continuidade de NSU,
+	// não "uma única execução por dia"; bloquear o dia inteiro fazia notas
+	// emitidas depois das 08:00 só aparecerem quando alguém abria o painel.
 	pastaControle := appconfig.PastaControle(cfg.PastaEfetiva())
 	_ = os.MkdirAll(pastaControle, 0o755)
 	marcador := filepath.Join(pastaControle, ".ultima-coleta-sucesso")
-	hoje := time.Now().Format("2006-01-02")
 
-	if dados, err := os.ReadFile(marcador); err == nil && strings.TrimSpace(string(dados)) == hoje {
-		log.Println("Já rodou hoje (provavelmente por causa do gatilho de boot) — não repete a coleta.")
-		log.Println("Pra forçar mesmo assim, abra o programa e use 'Buscar notas agora' no painel.")
-		return
+	if dados, err := os.ReadFile(marcador); err == nil {
+		ultimo := strings.TrimSpace(string(dados))
+		if t, parseErr := time.Parse(time.RFC3339, ultimo); parseErr == nil && time.Since(t) < 2*time.Hour {
+			log.Printf("Última coleta bem-sucedida há %s — não repete agora.", time.Since(t).Round(time.Minute))
+			return
+		}
 	}
 
 	catalogoAntes, err := catalogo.Listar(cfg.PastaEfetiva())
@@ -229,7 +228,7 @@ func rodarColeta(cfg appconfig.Config) {
 		}
 	}
 
-	if err := os.WriteFile(marcador, []byte(hoje), 0o644); err != nil {
+	if err := os.WriteFile(marcador, []byte(time.Now().Format(time.RFC3339)), 0o644); err != nil {
 		log.Printf("aviso: não consegui gravar marcador de última coleta: %v", err)
 	}
 }

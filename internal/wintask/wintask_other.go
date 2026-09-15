@@ -5,7 +5,7 @@
 // pacote).
 package wintask
 
-func garantirTarefa(horario string) error {
+func garantirTarefa(horarios ...string) error {
 	return nil
 }
 
