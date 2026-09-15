@@ -233,7 +233,60 @@ func (r *renderer) cell(w, h float64, txt, border string, ln int, align string, 
 func (r *renderer) text(x, y, w float64, s string, size float64, style string) {
 	r.pdf.SetFont("Arial", style, size)
 	r.pdf.SetXY(x, y)
-	r.cell(w, 3.2, short(valueOrDash(s), int(w*2.1)), "", 0, "L", false)
+	r.cell(w, 3.2, r.fit(valueOrDash(s), w), "", 0, "L", false)
+}
+
+func (r *renderer) fit(s string, w float64) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if r.pdf.GetStringWidth(r.tr(s)) <= w {
+		return s
+	}
+	runes := []rune(s)
+	for len(runes) > 0 {
+		runes = runes[:len(runes)-1]
+		candidate := string(runes) + "..."
+		if r.pdf.GetStringWidth(r.tr(candidate)) <= w {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func (r *renderer) paragraph(x, y, w, lineH float64, s string, size float64, maxLines int) {
+	r.pdf.SetFont("Arial", "", size)
+	lines, clipped := r.wrapLines(s, w, maxLines)
+	for i, line := range lines {
+		if clipped && i == len(lines)-1 {
+			line = r.fit(line+"...", w)
+		}
+		r.pdf.SetXY(x, y+float64(i)*lineH)
+		r.cell(w, lineH, line, "", 0, "L", false)
+	}
+}
+
+func (r *renderer) wrapLines(s string, w float64, maxLines int) ([]string, bool) {
+	words := strings.Fields(s)
+	if len(words) == 0 || maxLines <= 0 {
+		return nil, false
+	}
+	var lines []string
+	line := ""
+	for _, word := range words {
+		candidate := strings.TrimSpace(line + " " + word)
+		if line == "" || r.pdf.GetStringWidth(r.tr(candidate)) <= w {
+			line = candidate
+			continue
+		}
+		lines = append(lines, line)
+		line = word
+		if len(lines) == maxLines {
+			return lines, true
+		}
+	}
+	if line != "" && len(lines) < maxLines {
+		lines = append(lines, line)
+	}
+	return lines, false
 }
 
 func (r *renderer) section(title string, y, h float64, cols ...float64) {
@@ -358,13 +411,9 @@ func (r *renderer) servico(n nfseNacional) {
 	r.text(106, y+5, 45, formatNBS(svc.CNBS), 7, "")
 	r.text(157, y+1, 48, "Local da Prestação / Sigla UF / País", 6.1, "B")
 	r.text(157, y+5, 48, loc(n.InfNFSe.XLocPrestacao, n.InfNFSe.XLocEmi)+" / SP / -", 7, "")
-	r.pdf.SetFont("Arial", "", 6.3)
-	r.pdf.SetXY(5, y+11)
-	r.pdf.MultiCell(198, 3, r.tr(short(n.InfNFSe.XTribNac, 230)), "", "L", false)
+	r.paragraph(5, y+11, 198, 3, n.InfNFSe.XTribNac, 6.3, 3)
 	r.text(5, y+20, 60, "Descrição do Serviço", 6.1, "B")
-	r.pdf.SetFont("Arial", "", 6.15)
-	r.pdf.SetXY(5, y+24)
-	r.pdf.MultiCell(198, 2.8, r.tr(short(svc.XDescServ, 520)), "", "L", false)
+	r.paragraph(5, y+24, 198, 2.8, svc.XDescServ, 6.15, 3)
 	r.pdf.SetY(y + 32)
 }
 
@@ -374,7 +423,7 @@ func (r *renderer) tributacaoMunicipal(n nfseNacional) {
 	r.section("TRIBUTAÇÃO MUNICIPAL (ISSQN)", y, 18, 51, 102, 153)
 	r.text(55, y+1, 45, "Tipo de Tributação do ISSQN", 6.1, "B")
 	r.text(55, y+5, 45, tribISS(n.InfNFSe.DPS.InfDPS.Valores.Trib.TribMun.TribISSQN), 7, "")
-	r.text(106, y+1, 95, "Município / Sigla UF / País de Incidência do ISSQN", 6.1, "B")
+	r.text(106, y+1, 95, "Município / UF / País de Incidência do ISSQN", 6.1, "B")
 	r.text(106, y+5, 95, loc(n.InfNFSe.XLocIncid, n.InfNFSe.XLocEmi)+" / SP / -", 7, "")
 	r.row4(y+9, "BC ISSQN", money(v.VBC), "Alíquota Aplicada", percent(v.PAliq), "Retenção do ISSQN", retISS(n.InfNFSe.DPS.InfDPS.Valores.Trib.TribMun.TpRetISSQN), "ISSQN Apurado", money(v.VISSQN))
 	r.pdf.SetY(y + 18)
@@ -384,7 +433,7 @@ func (r *renderer) tributacaoFederal(n nfseNacional) {
 	y := r.pdf.GetY()
 	f := n.InfNFSe.DPS.InfDPS.Valores.Trib.TribFed
 	r.section("TRIBUTAÇÃO FEDERAL (EXCETO CBS)", y, 18, 51, 102, 153)
-	r.rowFrom2(y+1, "IRRF", money(f.VRetIRRF), "Contribuição Previdenciária - Retida", money(f.VRetCP), "Contribuições Sociais - Retidas", "-")
+	r.rowFrom2(y+1, "IRRF", money(f.VRetIRRF), "Contrib. Previdenciária Retida", money(f.VRetCP), "Contribuições Sociais Retidas", "-")
 	r.row3(y+9, "PIS - Débito Apuração Própria", money(f.PISCOFINS.VPis), "COFINS - Débito Apuração Própria", money(f.PISCOFINS.VCofins), "Descrição Contrib. Sociais - Retidas", "0 - PIS/COFINS/CSLL Não Retidos")
 	r.pdf.SetY(y + 18)
 }
@@ -393,8 +442,8 @@ func (r *renderer) tributacaoIBSCBS(n nfseNacional) {
 	y := r.pdf.GetY()
 	i, d := n.InfNFSe.IBSCBS, n.InfNFSe.DPS.InfDPS.IBSCBS
 	r.section("TRIBUTAÇÃO IBS/CBS", y, 33, 51, 102, 153)
-	r.rowFrom2(y+1, "CST / cClassTrib", valueOrDash(d.Valores.Trib.GIBSCBS.CST)+" / "+valueOrDash(d.Valores.Trib.GIBSCBS.CClassTrib), "Indicador de Operação / Código IBGE Incidência / Município Incidência / Sigla UF", valueOrDash(d.CIndOp)+" / "+valueOrDash(i.CLocalidadeIncid)+" / "+loc(i.XLocalidadeIncid, "-")+" / SP", "", "")
-	r.row4(y+9, "Exclusões e Reduções da Base de Cálculo", "R$ 0,00", "Base de Cálculo Após Exclusões e Reduções", money(i.Valores.VBC), "Red. Alíquota IBS / Red. Alíquota CBS", percent(i.Valores.UF.PRedAliqUF)+" / "+percent(i.Valores.Mun.PRedAliqMun)+" / "+percent(i.Valores.Fed.PRedAliqCBS), "Alíquota - IBS UF / IBS Mun", percent(i.Valores.UF.PIBSUF)+" / "+percent(i.Valores.Mun.PIBSMun))
+	r.rowFrom2(y+1, "CST / cClassTrib", valueOrDash(d.Valores.Trib.GIBSCBS.CST)+" / "+valueOrDash(d.Valores.Trib.GIBSCBS.CClassTrib), "Indicador / IBGE / Município / UF", valueOrDash(d.CIndOp)+" / "+valueOrDash(i.CLocalidadeIncid)+" / "+loc(i.XLocalidadeIncid, "-")+" / SP", "", "")
+	r.row4(y+9, "Exclusões/Reduções BC", "R$ 0,00", "BC após Exclusões/Reduções", money(i.Valores.VBC), "Red. Alíq. IBS / CBS", percent(i.Valores.UF.PRedAliqUF)+" / "+percent(i.Valores.Mun.PRedAliqMun)+" / "+percent(i.Valores.Fed.PRedAliqCBS), "Alíq. IBS UF / Mun", percent(i.Valores.UF.PIBSUF)+" / "+percent(i.Valores.Mun.PIBSMun))
 	r.row4(y+17, "Alíq. Efetiva Municipal - IBS", percent(i.Valores.Mun.PAliqEfetMun), "Valor Apurado Municipal - IBS", money(i.TotCIBS.GIBS.GIBSMunTot.VIBSMun), "Alíq. Efetiva Estadual - IBS", percent(i.Valores.UF.PAliqEfetUF), "Valor Apurado Estadual - IBS", money(i.TotCIBS.GIBS.GIBSUFTot.VIBSUF))
 	r.row4(y+25, "Valor Total Apurado - IBS", money(i.TotCIBS.GIBS.VIBSTot), "Alíquota - CBS", percent(i.Valores.Fed.PCBS), "Alíquota Efetiva - CBS", percent(i.Valores.Fed.PAliqEfetCBS), "Valor Total Apurado - CBS", money(i.TotCIBS.GCBS.VCBS))
 	r.pdf.SetY(y + 33)
@@ -408,7 +457,7 @@ func (r *renderer) valores(n nfseNacional) {
 	}
 	r.section("VALOR TOTAL DA NFS-e", y, 18, 51, 102, 153)
 	r.rowFrom2(y+1, "VALOR DA OPERAÇÃO / SERVIÇO", money(serv), "Desconto Incondicionado", "-", "Desconto Condicionado", "-")
-	r.row4(y+9, "Total das Retenções (ISSQN / Federais)", money(v.VTotalRet), "VALOR LÍQUIDO DA NFS-e", money(v.VLiq), "Total do IBS/CBS", money(totalIBSCBS(n)), "VALOR LÍQUIDO DA NFS-e + IBS/CBS", money(first(n.InfNFSe.IBSCBS.TotCIBS.VTotNF, v.VLiq)))
+	r.row4(y+9, "Total Retenções", money(v.VTotalRet), "VALOR LÍQUIDO DA NFS-e", money(v.VLiq), "Total do IBS/CBS", money(totalIBSCBS(n)), "Líquido NFS-e + IBS/CBS", money(first(n.InfNFSe.IBSCBS.TotCIBS.VTotNF, v.VLiq)))
 	r.pdf.SetY(y + 18)
 }
 
