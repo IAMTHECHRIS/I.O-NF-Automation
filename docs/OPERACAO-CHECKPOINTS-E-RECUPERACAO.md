@@ -167,8 +167,13 @@ ColetaNotasFiscaisAutomatica
 
 Ela roda:
 
-- diariamente às 08:00;
+- a cada 75 minutos;
 - 2 minutos após o Windows iniciar.
+
+O próprio coletor mantém uma trava curta de segurança: se uma coleta
+bem-sucedida acabou de rodar há menos de 70 minutos, a próxima chamada
+automática sai sem consultar de novo. Isso evita repetição imediata por boot,
+retry ou clique manual, mas ainda mantém a busca frequente ao longo do dia.
 
 Quando executada pela tarefa, o programa roda com o argumento:
 
@@ -206,7 +211,10 @@ notas@thesis.eng.br
 ```
 
 O e-mail é enviado quando aparecem documentos novos no catálogo após uma
-coleta agendada. O programa compara o catálogo antes/depois da rodada.
+coleta agendada. O programa compara o catálogo antes/depois da rodada. Em
+15/09/2026, a rotina estava implementada, mas o `config.json` do THESIS ainda
+estava com SMTP vazio/desativado; sem servidor, usuário, senha e destinatário,
+o coletor não tem por onde enviar.
 
 Anexos:
 

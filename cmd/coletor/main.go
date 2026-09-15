@@ -154,7 +154,7 @@ func encerrarAqui() bool {
 // garantirTarefaAgendada só faz sentido no Windows; em outros sistemas não
 // faz nada (ver internal/wintask).
 func garantirTarefaAgendada() {
-	if err := wintask.EnsureDailyTask("08:00", "14:00", "20:00"); err != nil {
+	if err := wintask.EnsurePeriodicTask(75); err != nil {
 		log.Printf("aviso: não consegui criar a tarefa agendada automaticamente: %v", err)
 		log.Println("(a coleta de hoje continua normalmente mesmo assim — só não ficou agendada sozinha)")
 	}
@@ -162,16 +162,16 @@ func garantirTarefaAgendada() {
 
 func rodarColeta(cfg appconfig.Config) {
 	// Evita duplicidade imediata de boot/retry sem bloquear as rodadas
-	// legítimas de 08:00, 14:00 e 20:00. A SEFAZ exige continuidade de NSU,
-	// não "uma única execução por dia"; bloquear o dia inteiro fazia notas
-	// emitidas depois das 08:00 só aparecerem quando alguém abria o painel.
+	// legítimas do agendador. A SEFAZ exige continuidade de NSU, não "uma
+	// única execução por dia"; um ciclo de 75 minutos com trava de 70 evita
+	// duplicidade imediata sem prender nota emitida no meio do dia.
 	pastaControle := appconfig.PastaControle(cfg.PastaEfetiva())
 	_ = os.MkdirAll(pastaControle, 0o755)
 	marcador := filepath.Join(pastaControle, ".ultima-coleta-sucesso")
 
 	if dados, err := os.ReadFile(marcador); err == nil {
 		ultimo := strings.TrimSpace(string(dados))
-		if t, parseErr := time.Parse(time.RFC3339, ultimo); parseErr == nil && time.Since(t) < 2*time.Hour {
+		if t, parseErr := time.Parse(time.RFC3339, ultimo); parseErr == nil && time.Since(t) < 70*time.Minute {
 			log.Printf("Última coleta bem-sucedida há %s — não repete agora.", time.Since(t).Round(time.Minute))
 			return
 		}

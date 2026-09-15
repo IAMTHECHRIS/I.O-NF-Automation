@@ -71,9 +71,9 @@ Veja `dist/LEIA-ME.txt` (gerado junto do build) pra descrição completa.
 6. PDFs são gerados quando o XML contém dados suficientes (NF-e completa);
    se houver notificação SMTP configurada, documentos novos são enviados por
    e-mail com XML e PDF quando disponível
-7. Uma tarefa agendada roda a coleta diariamente (mais um reforço 2 min
-   após o PC ligar, caso o horário normal seja perdido) — com trava
-   própria pra nunca coletar mais de uma vez de verdade no mesmo dia
+7. Uma tarefa agendada roda a coleta a cada 75 minutos (mais um reforço 2 min
+   após o PC ligar, caso o ciclo seja perdido) — com trava curta própria para
+   evitar duplicidade imediata sem deixar nota do dia presa até o próximo turno
 
 ## Armadilha importante do `NFeDistribuicaoDFe`
 

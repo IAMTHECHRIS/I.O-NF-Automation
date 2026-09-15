@@ -82,6 +82,48 @@ Register-ScheduledTask -TaskName %s -Action $acao -Trigger @(%s) -Settings $conf
 	return nil
 }
 
+func garantirTarefaPeriodica(intervaloMinutos int) error {
+	if intervaloMinutos <= 0 {
+		intervaloMinutos = 75
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("descobrir caminho do executável: %w", err)
+	}
+
+	registrado, existe := caminhoRegistrado()
+	mesmoExe := existe && strings.EqualFold(filepath.Clean(registrado), filepath.Clean(exe))
+
+	script := fmt.Sprintf(`
+$ErrorActionPreference = "Stop"
+$acao = New-ScheduledTaskAction -Execute %s -Argument '--agendado'
+$inicio = (Get-Date).AddMinutes(5)
+$gatilho = New-ScheduledTaskTrigger -Once -At $inicio -RepetitionInterval (New-TimeSpan -Minutes %d) -RepetitionDuration (New-TimeSpan -Days 3650)
+$gatilhoBoot = New-ScheduledTaskTrigger -AtStartup
+$gatilhoBoot.Delay = 'PT2M'
+$config = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew
+$principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName %s -Action $acao -Trigger @($gatilho, $gatilhoBoot) -Settings $config -Principal $principal -Description "Coleta automatica de notas fiscais (NFe/NFSe) via SEFAZ a cada %d minutos. Criada automaticamente." -Force | Out-Null
+`, aspasPS(exe), intervaloMinutos, aspasPS(nomeTarefa), intervaloMinutos)
+
+	saida, err := rodarPowerShell(script)
+	if err != nil {
+		return fmt.Errorf("criar tarefa agendada periódica: %w — saída: %s", err, saida)
+	}
+
+	if mesmoExe {
+		fmt.Printf("Tarefa agendada verificada e reaplicada: a cada %d minutos.\n", intervaloMinutos)
+	} else if existe {
+		fmt.Printf("Tarefa agendada estava desatualizada — corrigida para rodar a cada %d minutos.\n", intervaloMinutos)
+	} else {
+		fmt.Printf("Tarefa agendada criada: roda sozinho a cada %d minutos.\n", intervaloMinutos)
+	}
+	fmt.Println("Se o PC estiver desligado (ou você deslogado), ela roda")
+	fmt.Println("assim que ligar/entrar de novo — não precisa configurar nada manualmente.")
+
+	return nil
+}
+
 // caminhoRegistrado devolve o executável que a tarefa (se existir) está
 // configurada pra rodar, e se ela existe. String vazia + false = não existe.
 func caminhoRegistrado() (string, bool) {

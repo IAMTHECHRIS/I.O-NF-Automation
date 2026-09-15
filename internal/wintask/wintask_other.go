@@ -9,6 +9,10 @@ func garantirTarefa(horarios ...string) error {
 	return nil
 }
 
+func garantirTarefaPeriodica(intervaloMinutos int) error {
+	return nil
+}
+
 func removerTarefa() error {
 	return nil
 }
