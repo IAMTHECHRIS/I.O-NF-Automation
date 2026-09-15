@@ -90,7 +90,6 @@ func GerarPDFsPendentes(cfg appconfig.Config) ResumoPDF {
 		pdfPath := strings.TrimSuffix(e.Caminho, filepath.Ext(e.Caminho)) + ".pdf"
 		if _, err := os.Stat(pdfPath); err == nil {
 			resumo.Existentes++
-			continue
 		}
 		xmlBytes, err := os.ReadFile(e.Caminho)
 		if err != nil {

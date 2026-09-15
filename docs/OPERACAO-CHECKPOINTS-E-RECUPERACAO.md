@@ -230,9 +230,10 @@ Status atual:
   novamente após alguns minutos; quando a SEFAZ devolver `procNFe`, o DANFE é
   gerado normalmente. A coleta agendada nunca envia essa manifestação sozinha.
 - NFS-e gera DANFSe/PDF a partir do XML já baixado. Em 15/09/2026 o modelo
-  foi ampliado com chave de acesso, código de barras, prestador/tomador,
-  serviço, valores e tributação básica; ainda não substitui conferência visual
-  contra o DANFSe oficial quando houver exigência formal.
+  foi refeito usando PDFs oficiais de entrada e saída como referência visual:
+  grade DANFSe v2.0, QR code, chave de acesso, prestador/tomador, serviço,
+  ISSQN, tributos federais, IBS/CBS, valores totais e rodapé. A rotina de PDF
+  de serviço sobrescreve PDFs antigos para atualizar o modelo.
 
 ## Situação da THESIS após o teste de 2026-09-04
 
