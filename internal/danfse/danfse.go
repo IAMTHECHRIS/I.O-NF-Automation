@@ -333,11 +333,11 @@ func (r *renderer) identificacao(n nfseNacional, direcao string) {
 	if img, err := qrCode(n.InfNFSe.ChaveAcesso); err == nil {
 		opt := gofpdf.ImageOptions{ImageType: "PNG", ReadDpi: true}
 		r.pdf.RegisterImageOptionsReader("qr-nfse", opt, img)
-		r.pdf.ImageOptions("qr-nfse", 174, y+2, 17, 17, false, opt, 0, "")
+		r.pdf.ImageOptions("qr-nfse", 175, y+1, 15, 15, false, opt, 0, "")
 	}
 	r.pdf.SetFont("Arial", "", 6)
-	r.pdf.SetXY(157, y+17)
-	r.pdf.MultiCell(46, 3, r.tr("A autenticidade desta NFS-e pode ser verificada\npela leitura deste código QR ou pela consulta da\nchave de acesso no portal nacional da NFS-e"), "", "L", false)
+	r.pdf.SetXY(157, y+17.5)
+	r.pdf.MultiCell(46, 2.7, r.tr("A autenticidade desta NFS-e pode ser verificada\npela leitura deste código QR ou pela consulta da\nchave de acesso no portal nacional da NFS-e"), "", "L", false)
 	y = 29
 	r.box(3, y, 51, 12, "NÚMERO DA NFS-e", n.InfNFSe.NNFSe)
 	r.box(54, y, 51, 12, "COMPETÊNCIA DA NFS-e", dataBR(n.InfNFSe.DPS.InfDPS.DCompet))
@@ -365,7 +365,14 @@ func (r *renderer) pessoa(titulo string, p pessoa, simples string) {
 	if titulo == "PRESTADOR / FORNECEDOR" {
 		h = 37
 	}
-	r.section(titulo, y, h, 51, 102, 153)
+	r.pdf.Rect(3, y, 204, h, "D")
+	r.pdf.SetFillColor(238, 238, 238)
+	r.pdf.Rect(3, y, 51, 10, "F")
+	r.pdf.Line(54, y, 54, y+10)
+	r.pdf.Line(105, y, 105, y+10)
+	r.pdf.Line(156, y, 156, y+10)
+	r.pdf.Line(3, y+10, 207, y+10)
+	r.text(5, y+1, 48, titulo, 7.4, "B")
 	r.text(55, y+1, 45, "CNPJ / CPF / NIF", 6.1, "B")
 	r.text(55, y+5, 45, docFormatado(p), 7, "")
 	r.text(106, y+1, 45, "Indicador Municipal (Inscrição)", 6.1, "B")
@@ -403,7 +410,7 @@ func (r *renderer) centerLine(s string) {
 func (r *renderer) servico(n nfseNacional) {
 	y := r.pdf.GetY()
 	svc := n.InfNFSe.DPS.InfDPS.Serv.CServ
-	r.pdf.Rect(3, y, 204, 32, "D")
+	r.pdf.Rect(3, y, 204, 42, "D")
 	r.pdf.SetFillColor(238, 238, 238)
 	r.pdf.Rect(3, y, 51, 10, "F")
 	r.pdf.Line(54, y, 54, y+10)
@@ -417,10 +424,10 @@ func (r *renderer) servico(n nfseNacional) {
 	r.text(106, y+5, 45, formatNBS(svc.CNBS), 7, "")
 	r.text(157, y+1, 48, "Local da Prestação / Sigla UF / País", 6.1, "B")
 	r.text(157, y+5, 48, loc(n.InfNFSe.XLocPrestacao, n.InfNFSe.XLocEmi)+" / SP / -", 7, "")
-	r.paragraph(5, y+12, 198, 3, n.InfNFSe.XTribNac, 6.3, 3)
-	r.text(5, y+20, 60, "Descrição do Serviço", 6.1, "B")
-	r.paragraph(5, y+24, 198, 2.8, svc.XDescServ, 6.15, 3)
-	r.pdf.SetY(y + 32)
+	r.paragraph(5, y+12, 198, 3, n.InfNFSe.XTribNac, 6.0, 4)
+	r.text(5, y+24, 60, "Descrição do Serviço", 6.1, "B")
+	r.paragraph(5, y+28, 198, 2.8, svc.XDescServ, 5.8, 5)
+	r.pdf.SetY(y + 42)
 }
 
 func (r *renderer) tributacaoMunicipal(n nfseNacional) {
@@ -469,18 +476,27 @@ func (r *renderer) valores(n nfseNacional) {
 
 func (r *renderer) complementares(n nfseNacional) {
 	y := r.pdf.GetY()
-	r.pdf.Rect(3, y, 204, 19, "D")
+	h := 286.0 - y
+	if h < 12 {
+		h = 12
+	}
+	if h > 20 {
+		h = 20
+	}
+	r.pdf.Rect(3, y, 204, h, "D")
 	r.pdf.SetFillColor(238, 238, 238)
 	r.pdf.Rect(3, y, 204, 5, "F")
 	r.text(5, y+1, 120, "INFORMAÇÕES COMPLEMENTARES", 7.4, "B")
-	r.pdf.SetFont("Arial", "", 6.3)
-	r.pdf.SetXY(5, y+7)
-	r.pdf.MultiCell(198, 3, r.tr(compl(n)), "", "L", false)
-	r.pdf.SetY(y + 19)
+	linhas := int((h - 7) / 3)
+	if linhas < 1 {
+		linhas = 1
+	}
+	r.paragraph(5, y+7, 198, 3, compl(n), 6.1, linhas)
+	r.pdf.SetY(y + h)
 }
 
 func (r *renderer) rodape(n nfseNacional) {
-	y := 276.0
+	y := 286.0
 	r.pdf.Rect(3, y, 204, 8, "D")
 	r.pdf.Line(54, y, 54, y+8)
 	r.pdf.Line(105, y, 105, y+8)

@@ -237,7 +237,9 @@ Status atual:
   do mesmo dia passou a cortar texto por largura real e limitar linhas de
   descrição para impedir sobreposição/vazamento entre blocos; em seguida, o
   bloco de serviço foi redesenhado para que as linhas verticais fiquem só no
-  cabeçalho e não atravessem a descrição.
+  cabeçalho e não atravessem a descrição. Conferência visual/pixel posterior
+  isolou o QR code do texto, removeu linhas verticais sobre nome/endereço e
+  moveu o rodapé para não colidir com informações complementares.
 
 ## Situação da THESIS após o teste de 2026-09-04
 
