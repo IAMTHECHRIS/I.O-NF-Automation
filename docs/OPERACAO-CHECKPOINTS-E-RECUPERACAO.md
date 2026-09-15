@@ -235,7 +235,9 @@ Status atual:
   ISSQN, tributos federais, IBS/CBS, valores totais e rodapé. A rotina de PDF
   de serviço sobrescreve PDFs antigos para atualizar o modelo. Ajuste posterior
   do mesmo dia passou a cortar texto por largura real e limitar linhas de
-  descrição para impedir sobreposição/vazamento entre blocos.
+  descrição para impedir sobreposição/vazamento entre blocos; em seguida, o
+  bloco de serviço foi redesenhado para que as linhas verticais fiquem só no
+  cabeçalho e não atravessem a descrição.
 
 ## Situação da THESIS após o teste de 2026-09-04
 
